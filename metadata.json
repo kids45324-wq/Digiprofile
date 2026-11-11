@@ -1,0 +1,6 @@
+{
+  "name": "DigiProfile - Creator Monetization Platform",
+  "description": "One Profile. Unlimited Possibilities. Sell digital products, launch custom creator storefronts, and accept global payments.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
