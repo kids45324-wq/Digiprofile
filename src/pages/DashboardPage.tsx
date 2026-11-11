@@ -31,15 +31,29 @@ import {
   ShieldCheck,
   ChevronRight,
   TrendingUp,
-  Tag
+  Tag,
+  AlertTriangle,
+  Zap,
+  Lock
 } from 'lucide-react';
 import { DigitalProduct, Order, ProductCategory, ProfileAppearance } from '../types';
 import { api } from '../services/api';
+import { DragDropImageUpload } from '../components/common/DragDropImageUpload';
 
 export const DashboardPage: React.FC = () => {
   const { user, creator, updateCreatorProfile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
+
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradePeriod, setUpgradePeriod] = useState<'1month' | '3months'>('1month');
+  const [planActionLoading, setPlanActionLoading] = useState(false);
+  const [planSuccessMsg, setPlanSuccessMsg] = useState('');
+
+  // Plan limits: Free = 3 templates, Pro = 5 templates ($1/mo or $10/3mo)
+  const currentPlan = creator?.subscriptionPlan || 'free';
+  const isProPlan = currentPlan === 'pro' || currentPlan === 'business';
+  const maxTemplates = isProPlan ? 5 : 3;
 
   const [products, setProducts] = useState<DigitalProduct[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -203,6 +217,10 @@ export const DashboardPage: React.FC = () => {
   };
 
   const openNewProduct = () => {
+    if (products.length >= maxTemplates) {
+      setShowUpgradeModal(true);
+      return;
+    }
     setEditingProduct(null);
     setProductForm({
       title: '',
@@ -218,6 +236,22 @@ export const DashboardPage: React.FC = () => {
       status: 'published',
     });
     setShowProductModal(true);
+  };
+
+  const handleUpgradePlan = async (newPlan: 'free' | 'pro') => {
+    setPlanActionLoading(true);
+    try {
+      await updateCreatorProfile({ subscriptionPlan: newPlan });
+      setPlanSuccessMsg(
+        newPlan === 'pro' 
+          ? `Successfully activated Pro Plan! You can now host up to 5 templates with your 15-day free trial ($${upgradePeriod === '1month' ? '1/mo' : '10 for 3 mos'}).` 
+          : `Switched to Free Starter Plan (up to 3 templates hosted).`
+      );
+      setShowUpgradeModal(false);
+      setTimeout(() => setPlanSuccessMsg(''), 5000);
+    } finally {
+      setPlanActionLoading(false);
+    }
   };
 
   const tabs = [
@@ -302,21 +336,27 @@ export const DashboardPage: React.FC = () => {
         <div className="p-4 m-3 rounded-2xl bg-gradient-to-br from-purple-900/10 to-indigo-900/10 dark:from-purple-950/40 dark:to-indigo-950/40 border border-purple-200 dark:border-purple-800/60 text-xs">
           <div className="flex items-center justify-between">
             <span className="font-bold text-slate-900 dark:text-white capitalize">
-              {creator?.subscriptionPlan || 'Pro'} Plan
+              {isProPlan ? 'Creator Pro' : 'Free Starter'}
             </span>
-            <span className="text-[10px] bg-purple-600 text-white px-1.5 py-0.5 rounded font-extrabold uppercase">
-              $1/mo
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-extrabold uppercase ${isProPlan ? 'bg-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
+              {isProPlan ? '$1/mo' : 'FREE'}
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-            15-Day Free Trial • 0% platform fee
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-medium">
+            {isProPlan ? 'Host up to 5 Templates • 15-Day Trial' : 'Host up to 3 Templates'}
           </p>
-          <Link
-            to="/pricing"
-            className="mt-2 block font-bold text-purple-600 dark:text-purple-400 hover:underline text-[11px]"
-          >
-            Manage Subscription ($1/mo) →
-          </Link>
+          <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-purple-200/50 dark:border-purple-800/40">
+            <button
+              type="button"
+              onClick={() => setShowUpgradeModal(true)}
+              className="font-bold text-purple-600 dark:text-purple-400 hover:underline text-[11px] flex items-center gap-1"
+            >
+              {isProPlan ? 'Manage Pro Plan' : 'Upgrade to Pro ($1) →'}
+            </button>
+            <span className="text-[10px] text-slate-400 font-mono">
+              {products.length}/{maxTemplates}
+            </span>
+          </div>
         </div>
       </aside>
 
@@ -629,23 +669,23 @@ export const DashboardPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Avatar Image URL</label>
-                  <input
-                    type="text"
+                  <DragDropImageUpload
+                    label="Avatar Profile Photo (Drag & Drop)"
+                    helperText="Drop your profile picture here (Square recommended)"
                     value={profileForm.avatarUrl}
-                    onChange={e => setProfileForm({ ...profileForm, avatarUrl: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-xs"
+                    onChange={url => setProfileForm({ ...profileForm, avatarUrl: url })}
+                    aspectRatio="square"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Cover Image URL</label>
-                  <input
-                    type="text"
+                  <DragDropImageUpload
+                    label="Cover Banner Image (Drag & Drop)"
+                    helperText="Drop your wide cover banner here (16:9 recommended)"
                     value={profileForm.coverUrl}
-                    onChange={e => setProfileForm({ ...profileForm, coverUrl: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-xs"
+                    onChange={url => setProfileForm({ ...profileForm, coverUrl: url })}
+                    aspectRatio="banner"
                   />
                 </div>
               </div>
@@ -667,20 +707,95 @@ export const DashboardPage: React.FC = () => {
             ========================================================= */}
         {activeTab === 'products' && (
           <div className="space-y-6">
+            {/* Plan notification message */}
+            {planSuccessMsg && (
+              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center justify-between gap-3 animate-in fade-in duration-200">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>{planSuccessMsg}</span>
+                </div>
+                <button onClick={() => setPlanSuccessMsg('')} className="text-emerald-600 hover:underline">
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Template Hosting Quota Card (Superprofile Style) */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                      Template Hosting Quota
+                    </span>
+                    <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase ${
+                      isProPlan ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}>
+                      {isProPlan ? 'Pro Plan (Up to 5 Templates)' : 'Free Plan (Up to 3 Templates)'}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>{products.length} of {maxTemplates} Templates Hosted</span>
+                    {products.length >= maxTemplates && (
+                      <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+                        <AlertTriangle className="w-3.5 h-3.5" /> Quota Reached
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {isProPlan 
+                      ? 'You are enjoying Pro with up to 5 hosted templates, 0% platform fees, and 15-day free trial ($1/mo or $10/3mo).' 
+                      : 'Free Plan allows up to 3 hosted templates. Upgrade to Pro ($1/mo or $10 for 3 months) to host up to 5 templates with a 15-day free trial.'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {!isProPlan && (
+                    <button
+                      onClick={() => setShowUpgradeModal(true)}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 flex items-center gap-1.5 transition"
+                    >
+                      <Zap className="w-3.5 h-3.5" /> Upgrade to Pro ($1/mo)
+                    </button>
+                  )}
+                  {isProPlan && (
+                    <button
+                      onClick={() => setShowUpgradeModal(true)}
+                      className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold transition text-slate-700 dark:text-slate-300"
+                    >
+                      Plan Details
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="mt-4 w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700/60">
+                <div
+                  className={`h-full transition-all duration-500 rounded-full ${
+                    products.length >= maxTemplates
+                      ? 'bg-amber-500'
+                      : 'bg-gradient-to-r from-purple-600 to-indigo-600'
+                  }`}
+                  style={{ width: `${Math.min(100, (products.length / maxTemplates) * 100)}%` }}
+                />
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                  Digital Products & Store
-                </h1>
+                <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                  Your Digital Products & Templates
+                </h2>
                 <p className="text-xs text-slate-400">
-                  Manage your ebooks, courses, templates, and digital downloads.
+                  Manage your hosted ebooks, courses, templates, and digital files.
                 </p>
               </div>
               <button
                 onClick={openNewProduct}
                 className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition shadow flex items-center gap-1.5"
               >
-                <Plus className="w-4 h-4" /> Upload New Product
+                <Plus className="w-4 h-4" /> Upload New Template
               </button>
             </div>
 
@@ -1205,6 +1320,66 @@ export const DashboardPage: React.FC = () => {
         {activeTab === 'settings' && (
           <div className="space-y-6 max-w-3xl">
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Account Settings</h1>
+
+            {/* Plan & Subscription Card */}
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+                    Current Plan & Quotas
+                  </span>
+                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2 mt-0.5">
+                    <span>{isProPlan ? 'Creator Pro Plan' : 'Free Starter Plan'}</span>
+                    <span className="text-xs bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
+                      {isProPlan ? '$1/month (15-Day Free Trial)' : 'Free Forever'}
+                    </span>
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md transition"
+                >
+                  {isProPlan ? 'Manage Pro Plan' : 'Upgrade to Pro ($1/mo)'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+                  <span className="text-[11px] text-slate-400 block font-semibold">Templates Hosted</span>
+                  <span className="text-lg font-black text-slate-900 dark:text-white">
+                    {products.length} / {maxTemplates}
+                  </span>
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 block mt-0.5 font-bold">
+                    {isProPlan ? '5 templates max' : '3 templates max'}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+                  <span className="text-[11px] text-slate-400 block font-semibold">Platform Fee</span>
+                  <span className="text-lg font-black text-slate-900 dark:text-white">
+                    {isProPlan ? '0%' : '5%'}
+                  </span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block mt-0.5 font-bold">
+                    {isProPlan ? 'Keep 100% earnings' : 'Upgrade for 0%'}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+                  <span className="text-[11px] text-slate-400 block font-semibold">Image Uploads</span>
+                  <span className="text-lg font-black text-slate-900 dark:text-white">
+                    Unlimited
+                  </span>
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 block mt-0.5 font-bold">
+                    Drag & Drop Active
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Pro plan pricing: <strong>$1/month</strong> or <strong>$10 for 3 months</strong> with 15-day free trial.
+              </p>
+            </div>
             
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <h3 className="font-bold text-sm text-slate-900 dark:text-white">Custom Domain Mapping</h3>
@@ -1332,12 +1507,12 @@ export const DashboardPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Thumbnail Image URL</label>
-                <input
-                  type="text"
+                <DragDropImageUpload
+                  label="Product Thumbnail (Drag & Drop or Upload)"
+                  helperText="Drop your template thumbnail preview image here"
                   value={productForm.thumbnailUrl}
-                  onChange={e => setProductForm({ ...productForm, thumbnailUrl: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                  onChange={url => setProductForm({ ...productForm, thumbnailUrl: url })}
+                  aspectRatio="banner"
                 />
               </div>
 
@@ -1374,6 +1549,151 @@ export const DashboardPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Upgrade to Pro Plan (Template Limit Reached or Manual Upgrade) */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 my-8 animate-in fade-in zoom-in-95 duration-150 relative">
+            <div className="text-center space-y-2 mb-6">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-950/70 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-[11px] font-bold uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Super Profile Plan Upgrade</span>
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+                {isProPlan ? 'Manage Your Subscription' : 'Unlock Up to 5 Templates'}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                {products.length >= maxTemplates && !isProPlan
+                  ? 'You have reached the 3-template limit on the Free Plan. Upgrade to Pro to host up to 5 templates!'
+                  : 'Scale your digital store, unlock 5 templates hosting, and enjoy 15 days free trial.'}
+              </p>
+            </div>
+
+            {/* Plan Comparison Pills */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className={`p-4 rounded-2xl border text-left transition ${
+                !isProPlan
+                  ? 'border-purple-500 bg-purple-50/50 dark:bg-purple-950/30 ring-2 ring-purple-500/20'
+                  : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40'
+              }`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-xs text-slate-900 dark:text-white">Free Starter</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">$0</span>
+                </div>
+                <p className="text-[11px] text-purple-600 dark:text-purple-400 font-extrabold">Host up to 3 Templates</p>
+                <p className="text-[10px] text-slate-400 mt-1">Basic customization</p>
+              </div>
+
+              <div className={`p-4 rounded-2xl border text-left transition relative ${
+                isProPlan
+                  ? 'border-purple-500 bg-purple-50/50 dark:bg-purple-950/30 ring-2 ring-purple-500/20'
+                  : 'border-purple-400/80 bg-gradient-to-br from-purple-500/10 to-indigo-500/10'
+              }`}>
+                <div className="absolute -top-2.5 right-3 bg-purple-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
+                  15-Day Trial
+                </div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-xs text-slate-900 dark:text-white">Creator Pro</span>
+                  <span className="text-[10px] font-black text-purple-600 dark:text-purple-400">
+                    {upgradePeriod === '1month' ? '$1/mo' : '$10/3mo'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-purple-600 dark:text-purple-400 font-extrabold">Host up to 5 Templates</p>
+                <p className="text-[10px] text-slate-400 mt-1">0% fee • Drag & drop</p>
+              </div>
+            </div>
+
+            {/* Billing Period Selector */}
+            <div className="mb-6 p-2 rounded-2xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-between border border-slate-200 dark:border-slate-700">
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-300 pl-2">Choose Pro Term:</span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setUpgradePeriod('1month')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    upgradePeriod === '1month'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  $1 / month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUpgradePeriod('3months')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+                    upgradePeriod === '3months'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <span>$10 / 3 months</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Feature Checklist */}
+            <div className="space-y-2 mb-6 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs">
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span><strong>Host up to 5 Templates</strong> (vs 3 on Free)</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span><strong>15-Day Free Trial</strong> included with zero risk</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span><strong>Drag & Drop Image Uploads</strong> for avatar, cover, & products</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span><strong>Razorpay & Stripe</strong> instant direct checkout</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span><strong>0% platform fee</strong> (Keep 100% of your earnings)</span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="space-y-2.5">
+              {!isProPlan ? (
+                <button
+                  type="button"
+                  disabled={planActionLoading}
+                  onClick={() => handleUpgradePlan('pro')}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>
+                    {planActionLoading
+                      ? 'Activating Plan...'
+                      : `Activate Pro (15 Days Free Trial • Then ${upgradePeriod === '1month' ? '$1/mo' : '$10 for 3 mos'})`}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={planActionLoading}
+                  onClick={() => handleUpgradePlan('free')}
+                  className="w-full py-2.5 rounded-2xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition"
+                >
+                  Switch Back to Free Plan (3 Templates Limit)
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(false)}
+                className="w-full py-2 text-center text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-semibold"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

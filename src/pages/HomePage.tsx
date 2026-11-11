@@ -44,8 +44,8 @@ export const HomePage: React.FC = () => {
       a: 'Yes! On Pro and Business plans, you can connect your own custom domain (e.g. yourname.com or store.yourname.com) with automated SSL certificates, or use our clean handle digiprofile.com/username.'
     },
     {
-      q: 'What fees does DigiProfile charge?',
-      a: 'Our Free plan has a small 5% transaction fee with up to 3 products. Pro and Business plans have 0% platform fees on top of standard payment gateway processing (Stripe / Razorpay rates).'
+      q: 'What are the template limits and pricing on DigiProfile?',
+      a: 'Our Free plan allows hosting up to 3 templates or digital products forever at $0. Creator Pro allows hosting up to 5 templates for just $1 / month or $10 for 3 months, with a 15-day free trial included, 0% platform transaction fees, and full drag-and-drop image uploads.'
     }
   ];
 
